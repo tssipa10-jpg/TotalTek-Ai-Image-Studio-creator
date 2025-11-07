@@ -17,12 +17,27 @@ const getGenAI = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
+// Helper to parse data URL
+const parseDataUrl = (dataUrl: string): { mimeType: string; data: string } => {
+    const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
+    if (!match) {
+        // Fallback for when the data URL doesn't have the MIME type prefix
+        if (dataUrl.length > 0) {
+            return { mimeType: 'image/png', data: dataUrl };
+        }
+        throw new Error("Invalid data URL format");
+    }
+    return { mimeType: match[1], data: match[2] };
+};
+
+
 export const enhancePrompt = async (simplePrompt: string): Promise<string> => {
     const ai = getGenAI();
     try {
         const systemInstruction = `You are a creative assistant and an expert in prompt engineering for AI image generation models. 
-        Your task is to take a user's simple idea and expand it into a rich, detailed, and highly effective prompt. 
-        The prompt should include details about the subject, setting, art style, lighting, camera angle, and mood. 
+        Your task is to take a user's simple idea and expand it into a rich, detailed, and highly effective prompt.
+        The final prompt MUST describe an ultra-realistic, high-resolution photograph. Emphasize natural human textures, cinematic lighting, and a photorealistic look for the entire scene, including environment and background.
+        Include details about the subject, setting, art style (which should be photographic/realistic), lighting, camera angle, and mood.
         The final output should be ONLY the prompt itself, without any introductory text, titles, or explanations.
         For example, if the user provides "a cat in space", you should return something like: 
         "A cinematic, ultra-realistic photograph of a fluffy ginger cat wearing a retro-style bubble helmet, floating serenely in the vast emptiness of space. The Earth is a beautiful, glowing blue and white marble in the background. The lighting is dramatic, with the sun casting long shadows and highlighting the texture of the cat's fur. The composition is a medium shot, capturing the cat's curious expression. The mood is one of awe and wonder. Shot on a DSLR with a prime lens, f/1.8, high shutter speed, photorealistic, 8k."`;
@@ -67,6 +82,47 @@ export const generateImage = async (prompt: string, aspectRatio: string): Promis
     }
 };
 
+export const generateWithReference = async (prompt: string, referenceImage: string): Promise<string> => {
+    const ai = getGenAI();
+    try {
+        const { mimeType, data: base64Image } = parseDataUrl(referenceImage);
+        
+        const imagePart = {
+            inlineData: {
+                data: base64Image,
+                mimeType: mimeType,
+            },
+        };
+
+        const textPart = {
+            text: `Given the reference image of a character, create a new scene described by the following prompt, maintaining the character's appearance. Prompt: "${prompt}"`,
+        };
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [imagePart, textPart],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            },
+        });
+        
+        if (response.candidates && response.candidates[0].content.parts) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    return part.inlineData.data;
+                }
+            }
+        }
+
+        throw new Error("Image generation with reference failed or returned no image data.");
+    } catch (error) {
+        console.error("Error in generateWithReference:", error);
+        throw new Error("Failed to generate with reference. Please check your image, prompt, and API key.");
+    }
+};
+
 export const editImage = async (prompt: string, imageFile: File): Promise<string> => {
     const ai = getGenAI();
     try {
@@ -105,5 +161,49 @@ export const editImage = async (prompt: string, imageFile: File): Promise<string
     } catch (error) {
         console.error("Error in editImage:", error);
         throw new Error("Failed to edit image. Please check your image, prompt, and API key.");
+    }
+};
+
+
+export const createThumbnail = async (prompt: string, backgroundImage: File, foregroundImage: File): Promise<string> => {
+    const ai = getGenAI();
+    try {
+        const [backgroundBase64, foregroundBase64] = await Promise.all([
+            fileToBase64(backgroundImage),
+            fileToBase64(foregroundImage)
+        ]);
+
+        const backgroundPart = {
+            inlineData: { data: backgroundBase64, mimeType: backgroundImage.type },
+        };
+        const foregroundPart = {
+            inlineData: { data: foregroundBase64, mimeType: foregroundImage.type },
+        };
+        const textPart = {
+            text: `Create a YouTube thumbnail. Use the first image as the background/reference. Extract the person/main subject from the second image and seamlessly merge them into the background. The final composite image must be ultra-realistic, resembling a high-resolution photograph with natural lighting and textures. Pay attention to making the merged subject look natural in the new environment. Additional instructions from the user: "${prompt}"`,
+        };
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [backgroundPart, foregroundPart, textPart],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            },
+        });
+
+        if (response.candidates && response.candidates[0].content.parts) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    return part.inlineData.data;
+                }
+            }
+        }
+
+        throw new Error("Thumbnail creation failed or returned no image data.");
+    } catch (error) {
+        console.error("Error in createThumbnail:", error);
+        throw new Error("Failed to create thumbnail. Please check your images, prompt, and API key.");
     }
 };
