@@ -1,0 +1,5 @@
+{
+  "name": "TotalTek AI Image Studio",
+  "description": "An application to generate and edit high-definition images using text prompts. Supports various aspect ratios for social media platforms like Instagram, TikTok, and YouTube.",
+  "requestFramePermissions": []
+}
