@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppMode, AspectRatio, ActiveTab } from './types';
+import { AppMode, AspectRatio, ActiveTab, GalleryImage } from './types';
 import { ASPECT_RATIOS } from './constants';
-import { generateImage, editImage, enhancePrompt, generateWithReference, createThumbnail } from './services/geminiService';
+// Fix: Aliased the imported `mergeImages` function to `mergeImagesService` to avoid a name collision with the state variable.
+import { generateImage, editImage, enhancePrompt, generateWithReference, createThumbnail, mergeImages as mergeImagesService } from './services/geminiService';
+import { initDB, getAllGalleryImages, addImageToGallery, deleteImageFromGallery } from './services/dbService';
 import { Icon } from './components/Icon';
 import { Spinner } from './components/Spinner';
 
@@ -26,6 +28,7 @@ const ModeSwitcher: React.FC<ModeSwitcherProps> = ({ mode, setMode }) => (
     <div className="flex bg-gray-800 rounded-lg p-1">
         <button onClick={() => setMode('generate')} className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${mode === 'generate' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>Generate</button>
         <button onClick={() => setMode('edit')} className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${mode === 'edit' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>Edit</button>
+        <button onClick={() => setMode('merge')} className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${mode === 'merge' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>Merge</button>
         <button onClick={() => setMode('thumbnail')} className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${mode === 'thumbnail' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>Thumbnail</button>
     </div>
 );
@@ -47,33 +50,28 @@ export default function App() {
     const [inputImage, setInputImage] = useState<{ file: File; previewUrl: string } | null>(null);
     const [thumbnailBackground, setThumbnailBackground] = useState<{ file: File; previewUrl: string } | null>(null);
     const [thumbnailForeground, setThumbnailForeground] = useState<{ file: File; previewUrl: string } | null>(null);
+    const [mergeImages, setMergeImages] = useState<{ file: File; previewUrl: string; id: number }[]>([]);
     const [outputImage, setOutputImage] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isEnhancing, setIsEnhancing] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [galleryImages, setGalleryImages] = useState<string[]>([]);
+    const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
     const [referenceImage, setReferenceImage] = useState<string | null>(null);
 
-    // Load gallery from local storage on initial render
+    // Load gallery from IndexedDB on initial render
     useEffect(() => {
-        try {
-            const savedGallery = localStorage.getItem('ai-image-gallery');
-            if (savedGallery) {
-                setGalleryImages(JSON.parse(savedGallery));
+        const loadGallery = async () => {
+            try {
+                await initDB();
+                const images = await getAllGalleryImages();
+                setGalleryImages(images);
+            } catch (e) {
+                console.error("Failed to load gallery from IndexedDB:", e);
+                setError("Could not load the image gallery.");
             }
-        } catch (e) {
-            console.error("Failed to load gallery from local storage:", e);
-        }
+        };
+        loadGallery();
     }, []);
-
-    // Save gallery to local storage whenever it changes
-    useEffect(() => {
-        try {
-            localStorage.setItem('ai-image-gallery', JSON.stringify(galleryImages));
-        } catch(e) {
-            console.error("Failed to save gallery to local storage:", e);
-        }
-    }, [galleryImages]);
     
     useEffect(() => {
         // Cleanup object URLs to prevent memory leaks
@@ -81,8 +79,13 @@ export default function App() {
             if (inputImage?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(inputImage.previewUrl);
             if (thumbnailBackground?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(thumbnailBackground.previewUrl);
             if (thumbnailForeground?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(thumbnailForeground.previewUrl);
+            mergeImages.forEach(img => {
+                if (img.previewUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(img.previewUrl);
+                }
+            });
         };
-    }, [inputImage, thumbnailBackground, thumbnailForeground]);
+    }, [inputImage, thumbnailBackground, thumbnailForeground, mergeImages]);
 
     const createInputFileHandler = (
         setter: React.Dispatch<React.SetStateAction<{ file: File; previewUrl: string; } | null>>,
@@ -108,6 +111,46 @@ export default function App() {
     const handleEditFileChange = createInputFileHandler(setInputImage, inputImage);
     const handleThumbnailBgChange = createInputFileHandler(setThumbnailBackground, thumbnailBackground);
     const handleThumbnailFgChange = createInputFileHandler(setThumbnailForeground, thumbnailForeground);
+
+    const handleMergeFilesChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files) return;
+
+        setError(null);
+
+        const currentImageCount = mergeImages.length;
+        const availableSlots = 6 - currentImageCount;
+
+        if (files.length > availableSlots) {
+            setError(`You can only add ${availableSlots} more image(s).`);
+        }
+
+        const newImages: { file: File; previewUrl: string; id: number }[] = [];
+        for (let i = 0; i < Math.min(files.length, availableSlots); i++) {
+            const file = files[i];
+            if (file.size > 4 * 1024 * 1024) { // 4MB limit
+                setError(`File '${file.name}' is too large (max 4MB).`);
+                continue; // Skip this file
+            }
+            newImages.push({
+                file,
+                previewUrl: URL.createObjectURL(file),
+                id: Date.now() + Math.random(), // Unique ID
+            });
+        }
+
+        setMergeImages(prev => [...prev, ...newImages]);
+    };
+
+    const handleRemoveMergeImage = (idToRemove: number) => {
+        setMergeImages(prev => {
+            const imageToRemove = prev.find(img => img.id === idToRemove);
+            if (imageToRemove?.previewUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(imageToRemove.previewUrl);
+            }
+            return prev.filter(img => img.id !== idToRemove);
+        });
+    };
 
     const handleDownload = () => {
         if (outputImage) {
@@ -165,6 +208,14 @@ export default function App() {
                 }
                  const styledPrompt = defaultStyle + prompt;
                 resultBase64 = await editImage(styledPrompt, inputImage.file);
+            } else if (mode === 'merge') {
+                if (!prompt || mergeImages.length < 2) {
+                    setError("Please provide a prompt and at least 2 images to merge.");
+                    setIsLoading(false);
+                    return;
+                }
+                // Fix: Called the aliased `mergeImagesService` function instead of the state variable.
+                resultBase64 = await mergeImagesService(prompt, mergeImages.map(img => img.file));
             } else { // 'thumbnail' mode
                 if (!thumbnailBackground?.file || !thumbnailForeground?.file) {
                     setError("Please provide both a background and a foreground image for the thumbnail.");
@@ -180,13 +231,24 @@ export default function App() {
         } finally {
             setIsLoading(false);
         }
-    }, [mode, prompt, aspectRatio, inputImage, referenceImage, thumbnailBackground, thumbnailForeground]);
+    }, [mode, prompt, aspectRatio, inputImage, referenceImage, thumbnailBackground, thumbnailForeground, mergeImages]);
     
-    const handleSaveToGallery = useCallback(() => {
-        if (outputImage && !galleryImages.includes(outputImage)) {
-            setGalleryImages(prev => [outputImage, ...prev]);
+    const handleSaveToGallery = useCallback(async () => {
+        if (outputImage) {
+            // Prevent duplicates by checking against existing image data
+            if (galleryImages.some(img => img.imageData === outputImage)) {
+                return;
+            }
+            try {
+                const newId = await addImageToGallery(outputImage);
+                // Optimistically update UI by adding to the top of the list
+                setGalleryImages(prev => [{ id: newId, imageData: outputImage }, ...prev]);
+            } catch (e) {
+                setError(e instanceof Error ? e.message : "Failed to save image to gallery.");
+            }
         }
     }, [outputImage, galleryImages]);
+
 
     const handleSetReference = useCallback((imageUrl: string) => {
         setReferenceImage(imageUrl);
@@ -196,8 +258,14 @@ export default function App() {
     
     const handleClearReference = () => setReferenceImage(null);
 
-    const handleDeleteFromGallery = (imageToDelete: string) => {
-        setGalleryImages(prev => prev.filter(img => img !== imageToDelete));
+    const handleDeleteFromGallery = async (idToDelete: number) => {
+        if (!idToDelete) return;
+        try {
+            await deleteImageFromGallery(idToDelete);
+            setGalleryImages(prev => prev.filter(img => img.id !== idToDelete));
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to delete image from gallery.");
+        }
     };
 
     const handleUseFromGalleryForEdit = useCallback(async (imageUrl: string) => {
@@ -219,12 +287,13 @@ export default function App() {
         }
     }, [inputImage]);
 
-    const isSubmitDisabled = isLoading || isEnhancing || (mode === 'generate' && !prompt) || (mode === 'edit' && (!prompt || !inputImage)) || (mode === 'thumbnail' && (!thumbnailBackground || !thumbnailForeground));
+    const isSubmitDisabled = isLoading || isEnhancing || (mode === 'generate' && !prompt) || (mode === 'edit' && (!prompt || !inputImage)) || (mode === 'merge' && (!prompt || mergeImages.length < 2)) || (mode === 'thumbnail' && (!thumbnailBackground || !thumbnailForeground));
     
     const getButtonText = () => {
         switch (mode) {
             case 'generate': return 'Generate';
             case 'edit': return 'Edit Image';
+            case 'merge': return 'Merge Images';
             case 'thumbnail': return 'Create Thumbnail';
         }
     }
@@ -273,6 +342,7 @@ export default function App() {
                         placeholder={
                             mode === 'generate' ? "e.g., A cinematic shot of a raccoon astronaut on Mars" : 
                             mode === 'edit' ? "e.g., Add a retro filter and a flying saucer in the sky" :
+                            mode === 'merge' ? "e.g., A fantasy landscape with the character from image 1 and the castle from image 2" :
                             "e.g., Make the person look surprised, add vibrant text"
                         }
                         className="w-full h-24 p-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
@@ -313,6 +383,32 @@ export default function App() {
                                 )}
                             </label>
                             <input id="image-upload" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleEditFileChange} />
+                        </div>
+                    )}
+                    {mode === 'merge' && (
+                        <div>
+                            <h3 className="text-sm font-medium text-gray-300 mb-2">Upload Images (2-6 required)</h3>
+                            <div className="grid grid-cols-3 gap-2">
+                                {mergeImages.map((image) => (
+                                    <div key={image.id} className="relative group aspect-square">
+                                        <img src={image.previewUrl} alt="Merge preview" className="w-full h-full object-cover rounded-md" />
+                                        <button
+                                            onClick={() => handleRemoveMergeImage(image.id)}
+                                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            aria-label="Remove image"
+                                        >
+                                            <Icon path="M6 18L18 6M6 6l12 12" className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                {mergeImages.length < 6 && (
+                                    <label htmlFor="merge-upload" className="w-full aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:bg-gray-800 hover:border-gray-500 transition-colors">
+                                        <Icon path="M12 4.5v15m7.5-7.5h-15" className="h-8 w-8 text-gray-500" />
+                                        <p className="mt-1 text-xs text-gray-400">Add Image</p>
+                                    </label>
+                                )}
+                            </div>
+                            <input id="merge-upload" type="file" multiple className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleMergeFilesChange} disabled={mergeImages.length >= 6} />
                         </div>
                     )}
                     {mode === 'thumbnail' && (
@@ -422,17 +518,17 @@ export default function App() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {galleryImages.map((imgSrc, index) => (
-                                    <div key={index} className="group relative rounded-lg overflow-hidden aspect-square">
-                                        <img src={imgSrc} alt={`Gallery image ${index + 1}`} className="w-full h-full object-cover" />
+                                {galleryImages.map((image) => (
+                                    <div key={image.id} className="group relative rounded-lg overflow-hidden aspect-square">
+                                        <img src={image.imageData} alt={`Gallery image ${image.id}`} className="w-full h-full object-cover" />
                                         <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 space-y-2">
-                                            <button onClick={() => handleUseFromGalleryForEdit(imgSrc)} className="flex items-center text-xs py-1.5 px-3 bg-gray-200 text-gray-900 rounded-full hover:bg-white w-full justify-center">
+                                            <button onClick={() => handleUseFromGalleryForEdit(image.imageData)} className="flex items-center text-xs py-1.5 px-3 bg-gray-200 text-gray-900 rounded-full hover:bg-white w-full justify-center">
                                                 <Icon path="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" className="w-4 h-4 mr-1.5" /> Edit
                                             </button>
-                                            <button onClick={() => handleSetReference(imgSrc)} className="flex items-center text-xs py-1.5 px-3 bg-gray-200 text-gray-900 rounded-full hover:bg-white w-full justify-center">
+                                            <button onClick={() => handleSetReference(image.imageData)} className="flex items-center text-xs py-1.5 px-3 bg-gray-200 text-gray-900 rounded-full hover:bg-white w-full justify-center">
                                                  <Icon path="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" className="w-4 h-4 mr-1.5" /> Character
                                             </button>
-                                             <button onClick={() => handleDeleteFromGallery(imgSrc)} className="flex items-center text-xs py-1.5 px-3 bg-red-600 text-white rounded-full hover:bg-red-500 w-full justify-center">
+                                             <button onClick={() => handleDeleteFromGallery(image.id!)} className="flex items-center text-xs py-1.5 px-3 bg-red-600 text-white rounded-full hover:bg-red-500 w-full justify-center">
                                                 <Icon path="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12.548 0A48.108 48.108 0 016.25 5.392m7.5 0a48.667 48.667 0 00-7.5 0" className="w-4 h-4 mr-1.5" /> Delete
                                             </button>
                                         </div>

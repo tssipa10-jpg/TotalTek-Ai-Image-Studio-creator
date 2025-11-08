@@ -207,3 +207,47 @@ export const createThumbnail = async (prompt: string, backgroundImage: File, for
         throw new Error("Failed to create thumbnail. Please check your images, prompt, and API key.");
     }
 };
+
+export const mergeImages = async (prompt: string, imageFiles: File[]): Promise<string> => {
+    const ai = getGenAI();
+    try {
+        const imageParts = await Promise.all(
+            imageFiles.map(async (file) => {
+                const base64Image = await fileToBase64(file);
+                return {
+                    inlineData: {
+                        data: base64Image,
+                        mimeType: file.type,
+                    },
+                };
+            })
+        );
+        
+        const textPart = {
+            text: `Create a single, cohesive, ultra-realistic photograph by merging elements from all the provided images into a new scene. The result should be a high-resolution, photorealistic image. Follow the user's prompt to guide the composition, style, and subject matter. User's prompt: "${prompt}"`,
+        };
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [...imageParts, textPart],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            },
+        });
+
+        if (response.candidates && response.candidates[0].content.parts) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    return part.inlineData.data;
+                }
+            }
+        }
+
+        throw new Error("Image merging failed or returned no image data.");
+    } catch (error) {
+        console.error("Error in mergeImages:", error);
+        throw new Error("Failed to merge images. Please check your images, prompt, and API key.");
+    }
+};
