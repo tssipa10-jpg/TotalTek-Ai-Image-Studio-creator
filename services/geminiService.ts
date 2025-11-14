@@ -123,7 +123,7 @@ export const generateWithReference = async (prompt: string, referenceImage: stri
     }
 };
 
-export const editImage = async (prompt: string, imageFile: File): Promise<string> => {
+export const editImage = async (prompt: string, imageFile: File, aspectRatio: string): Promise<string> => {
     const ai = getGenAI();
     try {
         const base64Image = await fileToBase64(imageFile);
@@ -136,7 +136,7 @@ export const editImage = async (prompt: string, imageFile: File): Promise<string
         };
 
         const textPart = {
-            text: prompt,
+            text: `${prompt}. IMPORTANT: The final output image must have a ${aspectRatio} aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({
@@ -165,7 +165,7 @@ export const editImage = async (prompt: string, imageFile: File): Promise<string
 };
 
 
-export const createThumbnail = async (prompt: string, backgroundImage: File, foregroundImage: File): Promise<string> => {
+export const createThumbnail = async (prompt: string, backgroundImage: File, foregroundImage: File, aspectRatio: string): Promise<string> => {
     const ai = getGenAI();
     try {
         const [backgroundBase64, foregroundBase64] = await Promise.all([
@@ -180,7 +180,7 @@ export const createThumbnail = async (prompt: string, backgroundImage: File, for
             inlineData: { data: foregroundBase64, mimeType: foregroundImage.type },
         };
         const textPart = {
-            text: `Create a YouTube thumbnail. Use the first image as the background/reference. Extract the person/main subject from the second image and seamlessly merge them into the background. The final composite image must be ultra-realistic, resembling a high-resolution photograph with natural lighting and textures. Pay attention to making the merged subject look natural in the new environment. Additional instructions from the user: "${prompt}"`,
+            text: `Create a YouTube thumbnail. Use the first image as the background/reference. Extract the person/main subject from the second image and seamlessly merge them into the background. The final composite image must be ultra-realistic, resembling a high-resolution photograph with natural lighting and textures. Pay attention to making the merged subject look natural in the new environment. Additional instructions from the user: "${prompt}". The final thumbnail must have a ${aspectRatio} aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({
@@ -208,7 +208,7 @@ export const createThumbnail = async (prompt: string, backgroundImage: File, for
     }
 };
 
-export const mergeImages = async (prompt: string, imageFiles: File[]): Promise<string> => {
+export const mergeImages = async (prompt: string, imageFiles: File[], aspectRatio: string): Promise<string> => {
     const ai = getGenAI();
     try {
         const imageParts = await Promise.all(
@@ -224,7 +224,7 @@ export const mergeImages = async (prompt: string, imageFiles: File[]): Promise<s
         );
         
         const textPart = {
-            text: `Create a single, cohesive, ultra-realistic photograph by merging elements from all the provided images into a new scene. The result should be a high-resolution, photorealistic image. Follow the user's prompt to guide the composition, style, and subject matter. User's prompt: "${prompt}"`,
+            text: `Create a single, cohesive, ultra-realistic photograph by merging elements from all the provided images into a new scene. The result should be a high-resolution, photorealistic image. Follow the user's prompt to guide the composition, style, and subject matter. User's prompt: "${prompt}". The final image must have a ${aspectRatio} aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({

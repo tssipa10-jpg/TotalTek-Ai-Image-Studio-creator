@@ -207,7 +207,7 @@ export default function App() {
                     return;
                 }
                  const styledPrompt = defaultStyle + prompt;
-                resultBase64 = await editImage(styledPrompt, inputImage.file);
+                resultBase64 = await editImage(styledPrompt, inputImage.file, aspectRatio);
             } else if (mode === 'merge') {
                 if (!prompt || mergeImages.length < 2) {
                     setError("Please provide a prompt and at least 2 images to merge.");
@@ -215,14 +215,14 @@ export default function App() {
                     return;
                 }
                 // Fix: Called the aliased `mergeImagesService` function instead of the state variable.
-                resultBase64 = await mergeImagesService(prompt, mergeImages.map(img => img.file));
+                resultBase64 = await mergeImagesService(prompt, mergeImages.map(img => img.file), aspectRatio);
             } else { // 'thumbnail' mode
                 if (!thumbnailBackground?.file || !thumbnailForeground?.file) {
                     setError("Please provide both a background and a foreground image for the thumbnail.");
                     setIsLoading(false);
                     return;
                 }
-                resultBase64 = await createThumbnail(prompt, thumbnailBackground.file, thumbnailForeground.file);
+                resultBase64 = await createThumbnail(prompt, thumbnailBackground.file, thumbnailForeground.file, aspectRatio);
             }
             setOutputImage(`data:image/png;base64,${resultBase64}`);
         } catch (e) {
@@ -351,7 +351,7 @@ export default function App() {
 
                 {/* Mode-specific controls */}
                 <div className="flex-grow space-y-4">
-                    {mode === 'generate' && !referenceImage && (
+                    {!(mode === 'generate' && referenceImage) && (
                         <div>
                             <h3 className="text-sm font-medium text-gray-300 mb-2">Aspect Ratio</h3>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
