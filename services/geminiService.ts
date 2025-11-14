@@ -136,7 +136,7 @@ export const editImage = async (prompt: string, imageFile: File, aspectRatio: st
         };
 
         const textPart = {
-            text: `${prompt}. IMPORTANT: The final output image must have a ${aspectRatio} aspect ratio.`,
+            text: `Your primary task is to regenerate the provided image into a new composition that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratio MUST be completely discarded. After re-framing the image to ${aspectRatio}, apply the following edits based on the user's instructions: "${prompt}". The final output must be a single image with the new aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({
@@ -180,7 +180,7 @@ export const createThumbnail = async (prompt: string, backgroundImage: File, for
             inlineData: { data: foregroundBase64, mimeType: foregroundImage.type },
         };
         const textPart = {
-            text: `Create a YouTube thumbnail. Use the first image as the background/reference. Extract the person/main subject from the second image and seamlessly merge them into the background. The final composite image must be ultra-realistic, resembling a high-resolution photograph with natural lighting and textures. Pay attention to making the merged subject look natural in the new environment. Additional instructions from the user: "${prompt}". The final thumbnail must have a ${aspectRatio} aspect ratio.`,
+            text: `Your primary task is to create a new composite image that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratios of the input images MUST be completely discarded. To create this new image, use the first image as the background. Extract the person/main subject from the second image and seamlessly merge them into the background. The final composite image must be ultra-realistic, resembling a high-resolution photograph with natural lighting and textures. Pay attention to making the merged subject look natural in the new environment. Also, apply these additional user instructions: "${prompt}". The final output must be a single image with the new ${aspectRatio} aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({
@@ -224,7 +224,7 @@ export const mergeImages = async (prompt: string, imageFiles: File[], aspectRati
         );
         
         const textPart = {
-            text: `Create a single, cohesive, ultra-realistic photograph by merging elements from all the provided images into a new scene. The result should be a high-resolution, photorealistic image. Follow the user's prompt to guide the composition, style, and subject matter. User's prompt: "${prompt}". The final image must have a ${aspectRatio} aspect ratio.`,
+            text: `Your primary task is to create a single, new, cohesive image that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratios of all input images MUST be completely discarded. To create this new image, merge elements from all the provided images into a new, ultra-realistic photographic scene. The composition, style, and subject matter should be guided by the user's prompt: "${prompt}". The final output must be a single image with the new ${aspectRatio} aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({
