@@ -15,7 +15,7 @@ const Header: React.FC = () => (
             <div className="p-2 bg-purple-600 rounded-lg">
                 <Icon path="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.648l.21-1.049a3.375 3.375 0 00-2.456-2.456l-1.049-.21-.21 1.049a3.375 3.375 0 002.456 2.456l1.049.21z" className="w-6 h-6 text-white"/>
             </div>
-            <h1 className="text-2xl font-bold text-white">AI Image Studio</h1>
+            <h1 className="text-2xl font-bold text-white">TotalTek AI Image Studio <span className="text-xs bg-purple-800 px-2 py-1 rounded text-purple-200 ml-2">Gemini Pro</span></h1>
         </div>
     </header>
 );
@@ -184,7 +184,8 @@ export default function App() {
         setOutputImage(null);
         setActiveTab('result');
 
-        const defaultStyle = "An ultra-realistic image, like a high-resolution photo with a completely natural human texture of a real person. The entire image, including the environment and background, should have the same ultra-realistic, photographic characteristics. ";
+        // Updated prompt style for Gemini 3 models which are more capable
+        const defaultStyle = "High quality, photorealistic, 8k resolution. ";
 
         try {
             let resultBase64: string;
@@ -227,7 +228,7 @@ export default function App() {
             setOutputImage(`data:image/png;base64,${resultBase64}`);
         } catch (e) {
             console.error(e);
-            setError(e instanceof Error ? e.message : "An unknown error occurred.");
+            setError(e instanceof Error ? e.message : "An unknown error occurred. Please try again.");
         } finally {
             setIsLoading(false);
         }
@@ -291,9 +292,9 @@ export default function App() {
     
     const getButtonText = () => {
         switch (mode) {
-            case 'generate': return 'Generate';
-            case 'edit': return 'Edit Image';
-            case 'merge': return 'Merge Images';
+            case 'generate': return 'Generate with Gemini';
+            case 'edit': return 'Edit with Gemini';
+            case 'merge': return 'Merge with Gemini';
             case 'thumbnail': return 'Create Thumbnail';
         }
     }
@@ -304,240 +305,250 @@ export default function App() {
 
             {/* Controls Panel */}
             <aside className="p-6 flex flex-col space-y-6 bg-gray-900 lg:border-r lg:border-gray-800">
-                <ModeSwitcher mode={mode} setMode={(newMode) => { setMode(newMode); setError(null); }} />
-                
-                {referenceImage && mode === 'generate' && (
-                    <div className="p-3 bg-gray-800 rounded-lg border border-purple-500/50">
-                        <h3 className="text-sm font-medium text-gray-300 mb-2">Character Consistency Active</h3>
-                        <div className="flex items-center space-x-3">
-                            <img src={referenceImage} alt="Character reference" className="w-16 h-16 rounded-md object-cover" />
-                            <div className="flex-grow">
-                                <p className="text-xs text-gray-400">New images will be generated based on this character.</p>
-                                <button onClick={handleClearReference} className="text-xs text-red-400 hover:text-red-300 font-semibold mt-1">
-                                    Clear Reference
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <ModeSwitcher mode={mode} setMode={setMode} />
 
-                {/* Prompt Input */}
-                <div className="flex flex-col space-y-2">
-                    <div className="flex justify-between items-center">
-                        <label htmlFor="prompt" className="text-sm font-medium text-gray-300">Your Prompt</label>
-                        <button 
-                            onClick={handleEnhancePrompt}
-                            disabled={!prompt || isEnhancing || isLoading}
-                            className="flex items-center space-x-1.5 py-1 px-2 rounded-md bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 text-xs text-purple-400 hover:text-purple-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
-                            title="Enhance your prompt for better results"
-                        >
-                            {isEnhancing ? <Spinner className="w-4 h-4 border-purple-400" /> : <Icon path="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" className="w-4 h-4" />}
-                            <span>Enhance</span>
-                        </button>
-                    </div>
+                {/* Prompt Textarea */}
+                <div className="relative">
                     <textarea
-                        id="prompt"
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                         placeholder={
-                            mode === 'generate' ? "e.g., A cinematic shot of a raccoon astronaut on Mars" : 
-                            mode === 'edit' ? "e.g., Add a retro filter and a flying saucer in the sky" :
-                            mode === 'merge' ? "e.g., A fantasy landscape with the character from image 1 and the castle from image 2" :
-                            "e.g., Make the person look surprised, add vibrant text"
+                            mode === 'generate' ? "Describe the image you want to create..." :
+                            mode === 'edit' ? "Describe the edits you want to make..." :
+                            mode === 'merge' ? "Describe the final merged scene..." :
+                            "Add text or describe adjustments for the thumbnail..."
                         }
-                        className="w-full h-24 p-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                        className="w-full h-32 p-4 bg-gray-800 border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors placeholder-gray-500 text-white resize-none"
+                        aria-label="Prompt for AI image generation"
                     />
+                     <button
+                        onClick={handleEnhancePrompt}
+                        disabled={isEnhancing || isLoading || !prompt}
+                        className="absolute bottom-3 right-3 flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-1.5 px-3 rounded-md text-xs font-semibold hover:from-purple-500 hover:to-indigo-500 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
+                        title="Enhance prompt with more detail"
+                    >
+                        {isEnhancing ? <Spinner className="w-4 h-4" /> : <Icon path="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" className="w-4 h-4" />}
+                        <span>Enhance</span>
+                    </button>
                 </div>
 
-                {/* Mode-specific controls */}
-                <div className="flex-grow space-y-4">
-                    {!(mode === 'generate' && referenceImage) && (
-                        <div>
-                            <h3 className="text-sm font-medium text-gray-300 mb-2">Aspect Ratio</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                {ASPECT_RATIOS.map((ratio) => (
-                                    <button
-                                        key={ratio.id}
-                                        onClick={() => setAspectRatio(ratio.id)}
-                                        className={`p-3 text-left rounded-lg transition-colors border-2 ${aspectRatio === ratio.id ? 'bg-purple-600/20 border-purple-500' : 'bg-gray-800 border-gray-700 hover:border-gray-500'}`}
-                                    >
-                                        <p className="font-semibold text-white">{ratio.label}</p>
-                                        <p className="text-xs text-gray-400">{ratio.description}</p>
-                                    </button>
-                                ))}
+                {/* Mode-specific Inputs */}
+                {mode === 'generate' && (
+                    <>
+                    {referenceImage && (
+                        <div className="bg-gray-800 p-3 rounded-lg border border-purple-500">
+                            <p className="text-sm font-medium mb-2 text-purple-300">Using Reference Image:</p>
+                            <div className="flex items-center space-x-3">
+                                <img src={referenceImage} alt="Reference" className="w-16 h-16 rounded-md object-cover" />
+                                <div className="flex-1">
+                                    <p className="text-xs text-gray-400">The generated image will be based on the character in this image.</p>
+                                    <button onClick={handleClearReference} className="text-xs text-red-400 hover:underline mt-1">Clear Reference</button>
+                                </div>
                             </div>
                         </div>
                     )}
-                    {mode === 'edit' && (
-                        <div>
-                            <h3 className="text-sm font-medium text-gray-300 mb-2">Upload Image</h3>
-                            <label htmlFor="image-upload" className="w-full p-4 flex flex-col items-center justify-center border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:bg-gray-800 hover:border-gray-500 transition-colors">
-                                {inputImage ? (
-                                    <img src={inputImage.previewUrl} alt="Upload preview" className="max-h-24 rounded-md object-contain" />
+                    </>
+                )}
+
+                {mode === 'edit' && (
+                    <div>
+                        <label className="block text-sm font-medium mb-2 text-gray-300">Upload Image to Edit</label>
+                         <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md">
+                            <div className="space-y-1 text-center">
+                                {inputImage?.previewUrl ? (
+                                    <img src={inputImage.previewUrl} alt="Preview" className="mx-auto h-24 w-auto rounded-lg object-contain"/>
                                 ) : (
-                                    <div className="text-center">
-                                        <Icon path="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" className="mx-auto h-8 w-8 text-gray-500" />
-                                        <p className="mt-2 text-xs text-gray-400">Click to upload or drag & drop</p>
-                                        <p className="text-xs text-gray-500">PNG, JPG, WEBP (Max 4MB)</p>
-                                    </div>
+                                    <Icon path="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" className="mx-auto h-12 w-12 text-gray-500"/>
                                 )}
-                            </label>
-                            <input id="image-upload" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleEditFileChange} />
+                                <div className="flex text-sm text-gray-500 justify-center">
+                                <label htmlFor="edit-file-upload" className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-purple-400 hover:text-purple-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-purple-500">
+                                    <span>{inputImage ? 'Change file' : 'Upload a file'}</span>
+                                    <input id="edit-file-upload" name="edit-file-upload" type="file" className="sr-only" onChange={handleEditFileChange} accept="image/png, image/jpeg, image/webp"/>
+                                </label>
+                                </div>
+                                <p className="text-xs text-gray-600">PNG, JPG, WEBP up to 4MB</p>
+                            </div>
                         </div>
-                    )}
-                    {mode === 'merge' && (
+                    </div>
+                )}
+
+                {mode === 'thumbnail' && (
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <h3 className="text-sm font-medium text-gray-300 mb-2">Upload Images (2-6 required)</h3>
-                            <div className="grid grid-cols-3 gap-2">
-                                {mergeImages.map((image) => (
-                                    <div key={image.id} className="relative group aspect-square">
-                                        <img src={image.previewUrl} alt="Merge preview" className="w-full h-full object-cover rounded-md" />
-                                        <button
-                                            onClick={() => handleRemoveMergeImage(image.id)}
-                                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            aria-label="Remove image"
-                                        >
-                                            <Icon path="M6 18L18 6M6 6l12 12" className="w-4 h-4" />
+                            <label className="block text-sm font-medium mb-2 text-gray-300">Background Image</label>
+                            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md h-full">
+                                <div className="space-y-1 text-center flex flex-col justify-center">
+                                    {thumbnailBackground?.previewUrl ? (
+                                        <img src={thumbnailBackground.previewUrl} alt="BG Preview" className="mx-auto h-16 w-auto rounded-lg object-contain"/>
+                                    ) : (
+                                        <Icon path="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" className="mx-auto h-10 w-10 text-gray-500"/>
+                                    )}
+                                    <div className="flex text-sm text-gray-500 justify-center">
+                                        <label htmlFor="thumb-bg-upload" className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-purple-400 hover:text-purple-300">
+                                            <span>{thumbnailBackground ? 'Change' : 'Upload'}</span>
+                                            <input id="thumb-bg-upload" type="file" className="sr-only" onChange={handleThumbnailBgChange} accept="image/png, image/jpeg, image/webp"/>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">Foreground Subject</label>
+                            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md h-full">
+                               <div className="space-y-1 text-center flex flex-col justify-center">
+                                    {thumbnailForeground?.previewUrl ? (
+                                        <img src={thumbnailForeground.previewUrl} alt="FG Preview" className="mx-auto h-16 w-auto rounded-lg object-contain"/>
+                                    ) : (
+                                        <Icon path="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" className="mx-auto h-10 w-10 text-gray-500"/>
+                                    )}
+                                    <div className="flex text-sm text-gray-500 justify-center">
+                                        <label htmlFor="thumb-fg-upload" className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-purple-400 hover:text-purple-300">
+                                            <span>{thumbnailForeground ? 'Change' : 'Upload'}</span>
+                                            <input id="thumb-fg-upload" type="file" className="sr-only" onChange={handleThumbnailFgChange} accept="image/png, image/jpeg, image/webp"/>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
+                {mode === 'merge' && (
+                    <div>
+                        <label className="block text-sm font-medium mb-2 text-gray-300">Upload Images to Merge (2-6)</label>
+                        <div className="grid grid-cols-3 gap-3">
+                            {mergeImages.map((img) => (
+                                <div key={img.id} className="relative group">
+                                    <img src={img.previewUrl} alt="Merge preview" className="w-full h-24 object-cover rounded-md" />
+                                    <button
+                                        onClick={() => handleRemoveMergeImage(img.id)}
+                                        className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        aria-label="Remove image"
+                                    >
+                                        <Icon path="M6 18L18 6M6 6l12 12" className="w-3 h-3"/>
+                                    </button>
+                                </div>
+                            ))}
+                            {mergeImages.length < 6 && (
+                                <label htmlFor="merge-file-upload" className="flex items-center justify-center w-full h-24 border-2 border-gray-600 border-dashed rounded-md cursor-pointer hover:border-purple-500 transition-colors">
+                                    <div className="text-center">
+                                        <Icon path="M12 4.5v15m7.5-7.5h-15" className="mx-auto h-8 w-8 text-gray-500"/>
+                                        <span className="mt-2 block text-xs font-medium text-gray-400">Add Image(s)</span>
+                                        <input id="merge-file-upload" type="file" className="sr-only" multiple onChange={handleMergeFilesChange} accept="image/png, image/jpeg, image/webp"/>
+                                    </div>
+                                </label>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+
+                {/* Aspect Ratio Selector */}
+                <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-300">Aspect Ratio</label>
+                    <div className="grid grid-cols-5 gap-2">
+                        {ASPECT_RATIOS.map((ratio) => (
+                            <button
+                                key={ratio.id}
+                                onClick={() => setAspectRatio(ratio.id)}
+                                className={`p-2 border-2 rounded-lg text-center transition-colors ${aspectRatio === ratio.id ? 'bg-purple-600 border-purple-500' : 'bg-gray-800 border-gray-700 hover:border-purple-600'}`}
+                                title={ratio.description}
+                            >
+                                <span className="block font-semibold text-sm">{ratio.label}</span>
+                                <span className="block text-xs text-gray-400">{ratio.description}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="pt-4 border-t border-gray-800">
+                     <button
+                        onClick={handleSubmit}
+                        disabled={isSubmitDisabled}
+                        className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl hover:from-purple-500 hover:to-indigo-500 font-bold text-lg shadow-lg transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 flex items-center justify-center space-x-3"
+                    >
+                        {isLoading && <Spinner />}
+                        <span>{isLoading ? 'Processing...' : getButtonText()}</span>
+                    </button>
+                    {error && <p className="text-red-400 text-sm mt-3 text-center">{error}</p>}
+                </div>
+            </aside>
+
+            {/* Output Panel */}
+            <main className="p-6 bg-gray-800/50 rounded-lg flex flex-col">
+                <div className="flex border-b border-gray-700 mb-4">
+                    <button onClick={() => setActiveTab('result')} className={`py-2 px-4 text-sm font-medium ${activeTab === 'result' ? 'border-b-2 border-purple-500 text-white' : 'text-gray-400'}`}>Result</button>
+                    <button onClick={() => setActiveTab('gallery')} className={`py-2 px-4 text-sm font-medium ${activeTab === 'gallery' ? 'border-b-2 border-purple-500 text-white' : 'text-gray-400'}`}>Gallery</button>
+                </div>
+                
+                <div className="flex-grow flex items-center justify-center">
+                    {activeTab === 'result' && (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-center">
+                            {isLoading && (
+                                <div className="flex flex-col items-center">
+                                    <Spinner className="w-10 h-10 border-4 mb-4" />
+                                    <p className="text-lg font-medium text-gray-300">Generating your masterpiece...</p>
+                                    <p className="text-sm text-gray-500">This may take a moment.</p>
+                                </div>
+                            )}
+                            {!isLoading && outputImage && (
+                                <>
+                                    <img src={outputImage} alt="Generated output" className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl" />
+                                    <div className="mt-6 flex space-x-4">
+                                        <button onClick={handleDownload} className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                            <Icon path="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" className="w-5 h-5"/>
+                                            <span>Download</span>
+                                        </button>
+                                         <button onClick={handleSaveToGallery} className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                            <Icon path="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" className="w-5 h-5"/>
+                                            <span>Save to Gallery</span>
                                         </button>
                                     </div>
-                                ))}
-                                {mergeImages.length < 6 && (
-                                    <label htmlFor="merge-upload" className="w-full aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:bg-gray-800 hover:border-gray-500 transition-colors">
-                                        <Icon path="M12 4.5v15m7.5-7.5h-15" className="h-8 w-8 text-gray-500" />
-                                        <p className="mt-1 text-xs text-gray-400">Add Image</p>
-                                    </label>
-                                )}
-                            </div>
-                            <input id="merge-upload" type="file" multiple className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleMergeFilesChange} disabled={mergeImages.length >= 6} />
-                        </div>
-                    )}
-                    {mode === 'thumbnail' && (
-                        <div className="grid grid-cols-2 gap-4">
-                             <div>
-                                <h3 className="text-sm font-medium text-gray-300 mb-2">Background Image</h3>
-                                <label htmlFor="thumb-bg-upload" className="w-full p-2 h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:bg-gray-800 hover:border-gray-500 transition-colors">
-                                    {thumbnailBackground ? (
-                                        <img src={thumbnailBackground.previewUrl} alt="Background preview" className="max-h-28 rounded-md object-contain" />
-                                    ) : (
-                                        <div className="text-center">
-                                            <Icon path="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z" className="mx-auto h-8 w-8 text-gray-500" />
-                                            <p className="mt-1 text-xs text-gray-400">Upload</p>
-                                        </div>
-                                    )}
-                                </label>
-                                <input id="thumb-bg-upload" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleThumbnailBgChange} />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-medium text-gray-300 mb-2">Foreground Image</h3>
-                                <label htmlFor="thumb-fg-upload" className="w-full p-2 h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:bg-gray-800 hover:border-gray-500 transition-colors">
-                                    {thumbnailForeground ? (
-                                        <img src={thumbnailForeground.previewUrl} alt="Foreground preview" className="max-h-28 rounded-md object-contain" />
-                                    ) : (
-                                        <div className="text-center">
-                                            <Icon path="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" className="mx-auto h-8 w-8 text-gray-500" />
-                                            <p className="mt-1 text-xs text-gray-400">Upload Person/Object</p>
-                                        </div>
-                                    )}
-                                </label>
-                                <input id="thumb-fg-upload" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleThumbnailFgChange} />
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {error && <p className="text-sm text-red-400 bg-red-900/50 p-3 rounded-lg">{error}</p>}
-                
-                <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitDisabled}
-                    className="w-full flex items-center justify-center py-3 px-4 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all duration-300 ease-in-out"
-                >
-                    {isLoading ? <Spinner /> : <Icon path="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" className="w-5 h-5 mr-2" />}
-                    {getButtonText()}
-                </button>
-            </aside>
-            
-            {/* Display Panel with Tabs */}
-            <main className="p-6 flex flex-col bg-black/20 lg:bg-gray-900">
-                 <div className="flex border-b border-gray-700 mb-4">
-                    <button onClick={() => setActiveTab('result')} className={`py-2 px-4 text-sm font-medium transition-colors ${activeTab === 'result' ? 'border-b-2 border-purple-500 text-white' : 'text-gray-400 hover:text-white'}`}>
-                        Result
-                    </button>
-                    <button onClick={() => setActiveTab('gallery')} className={`py-2 px-4 text-sm font-medium transition-colors ${activeTab === 'gallery' ? 'border-b-2 border-purple-500 text-white' : 'text-gray-400 hover:text-white'}`}>
-                        Gallery ({galleryImages.length})
-                    </button>
-                </div>
-
-                {/* Result Tab */}
-                {activeTab === 'result' && (
-                    <div className="flex-grow flex flex-col">
-                        <div className="w-full flex-grow min-h-[40vh] lg:min-h-0 flex flex-col items-center justify-center bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-700 relative overflow-hidden">
-                            {isLoading && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10">
-                                    <Spinner className="w-12 h-12" />
-                                    <p className="mt-4 text-lg text-gray-300">Conjuring pixels...</p>
+                                </>
+                            )}
+                             {!isLoading && !outputImage && (
+                                <div className="text-center text-gray-500">
+                                    <Icon path="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" className="mx-auto h-20 w-20 opacity-50"/>
+                                    <p className="mt-4 text-lg">Your generated image will appear here.</p>
+                                    <p className="text-sm">Let your creativity flow!</p>
                                 </div>
                             )}
-                            {outputImage ? (
-                                <img src={outputImage} alt="Generated result" className="w-full h-full object-contain" />
+                        </div>
+                    )}
+                    {activeTab === 'gallery' && (
+                        <div className="w-full h-full">
+                            {galleryImages.length > 0 ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto max-h-[80vh] p-1">
+                                    {galleryImages.map(image => (
+                                        <div key={image.id} className="relative group aspect-square">
+                                            <img src={image.imageData} alt="Gallery item" className="w-full h-full object-cover rounded-lg shadow-md"/>
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 space-y-2">
+                                                <button onClick={() => handleSetReference(image.imageData)} className="flex items-center justify-center w-full text-xs bg-purple-600/80 hover:bg-purple-500/80 text-white py-1.5 px-2 rounded">
+                                                    <Icon path="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.324l5.584.532a.562.562 0 01.314.953l-4.218 3.902a.563.563 0 00-.162.524l1.28 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 21.54a.562.562 0 01-.84-.61l1.28-5.385a.563.563 0 00-.162-.524l-4.218-3.902a.562.562 0 01.314-.953l5.584-.532a.563.563 0 00.475-.324L11.48 3.5z" className="w-3 h-3 mr-1"/>
+                                                    Use as Reference
+                                                </button>
+                                                <button onClick={() => handleUseFromGalleryForEdit(image.imageData)} className="flex items-center justify-center w-full text-xs bg-gray-600/80 hover:bg-gray-500/80 text-white py-1.5 px-2 rounded">
+                                                    <Icon path="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" className="w-3 h-3 mr-1"/>
+                                                    Use for Editing
+                                                </button>
+                                                <button onClick={() => image.id && handleDeleteFromGallery(image.id)} className="absolute top-1 right-1 p-1 bg-red-600/80 rounded-full text-white">
+                                                    <Icon path="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12.548 0c-.265 0-.53 0-.796 0c-.7-1.11-1.468-2.218-2.28-3.243A1.2 1.2 0 014.17 1.487l.21.363h.393m15.038 0h.282a1.2 1.2 0 011.158 1.43l-2.25 12.75a1.2 1.2 0 01-1.158 1.02H4.218a1.2 1.2 0 01-1.158-1.02L.81 7.123A1.2 1.2 0 011.968 5.69h.282" className="w-3 h-3"/>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             ) : (
                                 <div className="text-center text-gray-500">
-                                    <Icon path="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" className="mx-auto h-12 w-12"/>
-                                    <p className="mt-4 font-semibold">Your image will appear here</p>
-                                    <p className="text-sm">Enter a prompt and click generate to start</p>
+                                    <Icon path="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" className="mx-auto h-20 w-20 opacity-50"/>
+                                    <p className="mt-4 text-lg">Your gallery is empty.</p>
+                                    <p className="text-sm">Saved images will appear here.</p>
                                 </div>
                             )}
                         </div>
-                         {outputImage && !isLoading && (
-                            <div className="flex items-center justify-center space-x-2 sm:space-x-4 mt-4">
-                                <button onClick={handleDownload} className="flex items-center py-2 px-4 bg-gray-800 text-white font-semibold rounded-lg shadow-lg hover:bg-gray-700 transition-colors text-sm">
-                                    <Icon path="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" className="w-5 h-5 mr-2" />
-                                    Download
-                                </button>
-                                <button onClick={handleSaveToGallery} className="flex items-center py-2 px-4 bg-gray-800 text-white font-semibold rounded-lg shadow-lg hover:bg-gray-700 transition-colors text-sm">
-                                    <Icon path="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.321l5.584.532a.562.562 0 01.314.953l-4.118 3.994a.563.563 0 00-.163.582l1.04 5.549a.562.562 0 01-.82.624l-4.99-2.733a.563.563 0 00-.54 0l-4.99 2.733a.562.562 0 01-.82-.624l1.04-5.549a.563.563 0 00-.163-.582l-4.118-3.994a.562.562 0 01.314-.953l5.584-.532a.563.563 0 00.475-.321L11.48 3.5z" className="w-5 h-5 mr-2" />
-                                    Save to Gallery
-                                </button>
-                                <button onClick={() => handleSetReference(outputImage)} className="flex items-center py-2 px-4 bg-gray-800 text-white font-semibold rounded-lg shadow-lg hover:bg-gray-700 transition-colors text-sm">
-                                    <Icon path="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" className="w-5 h-5 mr-2" />
-                                    Use for Character
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Gallery Tab */}
-                {activeTab === 'gallery' && (
-                    <div className="flex-grow overflow-y-auto">
-                        {galleryImages.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
-                                <Icon path="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z" className="h-12 w-12 mb-4" />
-                                <h3 className="text-lg font-semibold">Your Gallery is Empty</h3>
-                                <p className="text-sm">Generated images that you save will appear here.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {galleryImages.map((image) => (
-                                    <div key={image.id} className="group relative rounded-lg overflow-hidden aspect-square">
-                                        <img src={image.imageData} alt={`Gallery image ${image.id}`} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 space-y-2">
-                                            <button onClick={() => handleUseFromGalleryForEdit(image.imageData)} className="flex items-center text-xs py-1.5 px-3 bg-gray-200 text-gray-900 rounded-full hover:bg-white w-full justify-center">
-                                                <Icon path="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" className="w-4 h-4 mr-1.5" /> Edit
-                                            </button>
-                                            <button onClick={() => handleSetReference(image.imageData)} className="flex items-center text-xs py-1.5 px-3 bg-gray-200 text-gray-900 rounded-full hover:bg-white w-full justify-center">
-                                                 <Icon path="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" className="w-4 h-4 mr-1.5" /> Character
-                                            </button>
-                                             <button onClick={() => handleDeleteFromGallery(image.id!)} className="flex items-center text-xs py-1.5 px-3 bg-red-600 text-white rounded-full hover:bg-red-500 w-full justify-center">
-                                                <Icon path="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12.548 0A48.108 48.108 0 016.25 5.392m7.5 0a48.667 48.667 0 00-7.5 0" className="w-4 h-4 mr-1.5" /> Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
+                    )}
+                </div>
             </main>
         </div>
     );
