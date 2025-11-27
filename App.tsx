@@ -57,6 +57,7 @@ export default function App() {
     const [error, setError] = useState<string | null>(null);
     const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
     const [referenceImage, setReferenceImage] = useState<string | null>(null);
+    const [focusedImage, setFocusedImage] = useState<GalleryImage | null>(null);
 
     // Load gallery from IndexedDB on initial render
     useEffect(() => {
@@ -152,10 +153,11 @@ export default function App() {
         });
     };
 
-    const handleDownload = () => {
-        if (outputImage) {
+    const handleDownload = (imageUrl?: string) => {
+        const urlToDownload = imageUrl || outputImage;
+        if (urlToDownload) {
             const link = document.createElement('a');
-            link.href = outputImage;
+            link.href = urlToDownload;
             link.download = `ai_image_${new Date().getTime()}.png`;
             document.body.appendChild(link);
             link.click();
@@ -496,7 +498,7 @@ export default function App() {
                                 <>
                                     <img src={outputImage} alt="Generated output" className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl" />
                                     <div className="mt-6 flex space-x-4">
-                                        <button onClick={handleDownload} className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                        <button onClick={() => handleDownload()} className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
                                             <Icon path="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" className="w-5 h-5"/>
                                             <span>Download</span>
                                         </button>
@@ -522,20 +524,22 @@ export default function App() {
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto max-h-[80vh] p-1">
                                     {galleryImages.map(image => (
                                         <div key={image.id} className="relative group aspect-square">
-                                            <img src={image.imageData} alt="Gallery item" className="w-full h-full object-cover rounded-lg shadow-md"/>
-                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 space-y-2">
-                                                <button onClick={() => handleSetReference(image.imageData)} className="flex items-center justify-center w-full text-xs bg-purple-600/80 hover:bg-purple-500/80 text-white py-1.5 px-2 rounded">
-                                                    <Icon path="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.324l5.584.532a.562.562 0 01.314.953l-4.218 3.902a.563.563 0 00-.162.524l1.28 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 21.54a.562.562 0 01-.84-.61l1.28-5.385a.563.563 0 00-.162-.524l-4.218-3.902a.562.562 0 01.314-.953l5.584-.532a.563.563 0 00.475-.324L11.48 3.5z" className="w-3 h-3 mr-1"/>
-                                                    Use as Reference
-                                                </button>
-                                                <button onClick={() => handleUseFromGalleryForEdit(image.imageData)} className="flex items-center justify-center w-full text-xs bg-gray-600/80 hover:bg-gray-500/80 text-white py-1.5 px-2 rounded">
-                                                    <Icon path="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" className="w-3 h-3 mr-1"/>
-                                                    Use for Editing
-                                                </button>
-                                                <button onClick={() => image.id && handleDeleteFromGallery(image.id)} className="absolute top-1 right-1 p-1 bg-red-600/80 rounded-full text-white">
-                                                    <Icon path="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12.548 0c-.265 0-.53 0-.796 0c-.7-1.11-1.468-2.218-2.28-3.243A1.2 1.2 0 014.17 1.487l.21.363h.393m15.038 0h.282a1.2 1.2 0 011.158 1.43l-2.25 12.75a1.2 1.2 0 01-1.158 1.02H4.218a1.2 1.2 0 01-1.158-1.02L.81 7.123A1.2 1.2 0 011.968 5.69h.282" className="w-3 h-3"/>
-                                                </button>
-                                            </div>
+                                            <img
+                                                src={image.imageData}
+                                                alt="Gallery item"
+                                                className="w-full h-full object-cover rounded-lg shadow-md cursor-pointer transition-transform group-hover:scale-105"
+                                                onClick={() => setFocusedImage(image)}
+                                            />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); // Prevent modal from opening
+                                                    if (image.id) handleDeleteFromGallery(image.id);
+                                                }}
+                                                className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-red-600/80 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                                aria-label="Delete image"
+                                            >
+                                                <Icon path="M6 18L18 6M6 6l12 12" className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -550,6 +554,53 @@ export default function App() {
                     )}
                 </div>
             </main>
+
+            {/* Focused Image Viewer Modal */}
+            {focusedImage && (
+                <div
+                    className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    onClick={() => setFocusedImage(null)} // Close on backdrop click
+                >
+                    <div
+                        className="relative bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-full flex flex-col"
+                        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the modal
+                    >
+                        <div className="flex-grow flex items-center justify-center overflow-hidden">
+                            <img
+                                src={focusedImage.imageData}
+                                alt="Focused gallery item"
+                                className="w-auto h-auto max-w-full max-h-full object-contain rounded-md"
+                            />
+                        </div>
+                        
+                        <div className="mt-6 pt-4 border-t border-gray-700 flex flex-wrap justify-center gap-4">
+                            <button
+                                onClick={() => handleDownload(focusedImage.imageData)}
+                                className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                            >
+                               <Icon path="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" className="w-5 h-5"/>
+                               <span>Download</span>
+                            </button>
+                             <button onClick={() => { handleSetReference(focusedImage.imageData); setFocusedImage(null); }} className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                <Icon path="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.324l5.584.532a.562.562 0 01.314.953l-4.218 3.902a.563.563 0 00-.162.524l1.28 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 21.54a.562.562 0 01-.84-.61l1.28-5.385a.563.563 0 00-.162-.524l-4.218-3.902a.562.562 0 01.314-.953l5.584-.532a.563.563 0 00.475-.324L11.48 3.5z" className="w-5 h-5"/>
+                                <span>Use as Reference</span>
+                            </button>
+                            <button onClick={() => { handleUseFromGalleryForEdit(focusedImage.imageData); setFocusedImage(null); }} className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                <Icon path="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" className="w-5 h-5"/>
+                                <span>Use for Editing</span>
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setFocusedImage(null)}
+                            className="absolute top-3 right-3 p-2 bg-black/40 rounded-full text-white hover:bg-gray-700 transition-colors"
+                            aria-label="Close"
+                        >
+                            <Icon path="M6 18L18 6M6 6l12 12" className="w-5 h-5"/>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
