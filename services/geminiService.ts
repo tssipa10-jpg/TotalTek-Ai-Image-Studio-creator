@@ -59,13 +59,21 @@ export const enhancePrompt = async (simplePrompt: string): Promise<string> => {
     }
 };
 
-export const generateImage = async (prompt: string, aspectRatio: string): Promise<string> => {
+const constructFinalPrompt = (prompt: string, negativePrompt?: string): string => {
+    if (negativePrompt && negativePrompt.trim() !== '') {
+        return `${prompt}\n\n---\nAvoid the following: ${negativePrompt.trim()}`;
+    }
+    return prompt;
+};
+
+export const generateImage = async (prompt: string, aspectRatio: string, negativePrompt?: string): Promise<string> => {
     const ai = getGenAI();
     try {
+        const finalPrompt = constructFinalPrompt(prompt, negativePrompt);
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: {
-                parts: [{ text: prompt }],
+                parts: [{ text: finalPrompt }],
             },
             config: {
                 imageConfig: {
@@ -88,7 +96,7 @@ export const generateImage = async (prompt: string, aspectRatio: string): Promis
     }
 };
 
-export const generateWithReference = async (prompt: string, referenceImage: string): Promise<string> => {
+export const generateWithReference = async (prompt: string, referenceImage: string, negativePrompt?: string): Promise<string> => {
     const ai = getGenAI();
     try {
         const { mimeType, data: base64Image } = parseDataUrl(referenceImage);
@@ -100,8 +108,9 @@ export const generateWithReference = async (prompt: string, referenceImage: stri
             },
         };
 
+        const finalPrompt = constructFinalPrompt(prompt, negativePrompt);
         const textPart = {
-            text: `Given the reference image of a character, create a new scene described by the following prompt, maintaining the character's appearance. Prompt: "${prompt}"`,
+            text: `Given the reference image of a character, create a new scene described by the following prompt, maintaining the character's appearance. Prompt: "${finalPrompt}"`,
         };
 
         const response = await ai.models.generateContent({
@@ -126,7 +135,7 @@ export const generateWithReference = async (prompt: string, referenceImage: stri
     }
 };
 
-export const editImage = async (prompt: string, imageFile: File, aspectRatio: string): Promise<string> => {
+export const editImage = async (prompt: string, imageFile: File, aspectRatio: string, negativePrompt?: string): Promise<string> => {
     const ai = getGenAI();
     try {
         const base64Image = await fileToBase64(imageFile);
@@ -138,8 +147,9 @@ export const editImage = async (prompt: string, imageFile: File, aspectRatio: st
             },
         };
 
+        const finalPrompt = constructFinalPrompt(prompt, negativePrompt);
         const textPart = {
-            text: `Your primary task is to regenerate the provided image into a new composition that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratio MUST be completely discarded. After re-framing the image to ${aspectRatio}, apply the following edits based on the user's instructions: "${prompt}". The final output must be a single image with the new aspect ratio.`,
+            text: `Your primary task is to regenerate the provided image into a new composition that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratio MUST be completely discarded. After re-framing the image to ${aspectRatio}, apply the following edits based on the user's instructions: "${finalPrompt}". The final output must be a single image with the new aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({
@@ -165,7 +175,7 @@ export const editImage = async (prompt: string, imageFile: File, aspectRatio: st
 };
 
 
-export const createThumbnail = async (prompt: string, backgroundImage: File, foregroundImage: File, aspectRatio: string): Promise<string> => {
+export const createThumbnail = async (prompt: string, backgroundImage: File, foregroundImage: File, aspectRatio: string, negativePrompt?: string): Promise<string> => {
     const ai = getGenAI();
     try {
         const [backgroundBase64, foregroundBase64] = await Promise.all([
@@ -179,8 +189,9 @@ export const createThumbnail = async (prompt: string, backgroundImage: File, for
         const foregroundPart = {
             inlineData: { data: foregroundBase64, mimeType: foregroundImage.type },
         };
+        const finalPrompt = constructFinalPrompt(prompt, negativePrompt);
         const textPart = {
-            text: `Your primary task is to create a new composite image that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratios of the input images MUST be completely discarded. To create this new image, use the first image as the background. Extract the person/main subject from the second image and seamlessly merge them into the background. The final composite image must be ultra-realistic, resembling a high-resolution photograph with natural lighting and textures. Pay attention to making the merged subject look natural in the new environment. Also, apply these additional user instructions: "${prompt}". The final output must be a single image with the new ${aspectRatio} aspect ratio.`,
+            text: `Your primary task is to create a new composite image that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratios of the input images MUST be completely discarded. To create this new image, use the first image as the background. Extract the person/main subject from the second image and seamlessly merge them into the background. The final composite image must be ultra-realistic, resembling a high-resolution photograph with natural lighting and textures. Pay attention to making the merged subject look natural in the new environment. Also, apply these additional user instructions: "${finalPrompt}". The final output must be a single image with the new ${aspectRatio} aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({
@@ -205,7 +216,7 @@ export const createThumbnail = async (prompt: string, backgroundImage: File, for
     }
 };
 
-export const mergeImages = async (prompt: string, imageFiles: File[], aspectRatio: string): Promise<string> => {
+export const mergeImages = async (prompt: string, imageFiles: File[], aspectRatio: string, negativePrompt?: string): Promise<string> => {
     const ai = getGenAI();
     try {
         const imageParts = await Promise.all(
@@ -220,8 +231,9 @@ export const mergeImages = async (prompt: string, imageFiles: File[], aspectRati
             })
         );
         
+        const finalPrompt = constructFinalPrompt(prompt, negativePrompt);
         const textPart = {
-            text: `Your primary task is to create a single, new, cohesive image that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratios of all input images MUST be completely discarded. To create this new image, merge elements from all the provided images into a new, ultra-realistic photographic scene. The composition, style, and subject matter should be guided by the user's prompt: "${prompt}". The final output must be a single image with the new ${aspectRatio} aspect ratio.`,
+            text: `Your primary task is to create a single, new, cohesive image that strictly fits a ${aspectRatio} aspect ratio. The original aspect ratios of all input images MUST be completely discarded. To create this new image, merge elements from all the provided images into a new, ultra-realistic photographic scene. The composition, style, and subject matter should be guided by the user's prompt: "${finalPrompt}". The final output must be a single image with the new ${aspectRatio} aspect ratio.`,
         };
 
         const response = await ai.models.generateContent({

@@ -46,6 +46,7 @@ export default function App() {
     const [mode, setMode] = useState<AppMode>('generate');
     const [activeTab, setActiveTab] = useState<ActiveTab>('result');
     const [prompt, setPrompt] = useState<string>('');
+    const [negativePrompt, setNegativePrompt] = useState<string>('');
     const [aspectRatio, setAspectRatio] = useState<AspectRatio['id']>(ASPECT_RATIOS[0].id);
     const [inputImage, setInputImage] = useState<{ file: File; previewUrl: string } | null>(null);
     const [thumbnailBackground, setThumbnailBackground] = useState<{ file: File; previewUrl: string } | null>(null);
@@ -94,8 +95,8 @@ export default function App() {
     ) => (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            if (file.size > 4 * 1024 * 1024) { // 4MB limit
-                setError('File size must be less than 4MB.');
+            if (file.size > 6 * 1024 * 1024) { // 6MB limit
+                setError('File size must be less than 6MB.');
                 return;
             }
             if (currentImage?.previewUrl.startsWith('blob:')) {
@@ -129,8 +130,8 @@ export default function App() {
         const newImages: { file: File; previewUrl: string; id: number }[] = [];
         for (let i = 0; i < Math.min(files.length, availableSlots); i++) {
             const file = files[i];
-            if (file.size > 4 * 1024 * 1024) { // 4MB limit
-                setError(`File '${file.name}' is too large (max 4MB).`);
+            if (file.size > 6 * 1024 * 1024) { // 6MB limit
+                setError(`File '${file.name}' is too large (max 6MB).`);
                 continue; // Skip this file
             }
             newImages.push({
@@ -199,9 +200,9 @@ export default function App() {
                 }
                 const styledPrompt = defaultStyle + prompt;
                 if (referenceImage) {
-                    resultBase64 = await generateWithReference(styledPrompt, referenceImage);
+                    resultBase64 = await generateWithReference(styledPrompt, referenceImage, negativePrompt);
                 } else {
-                    resultBase64 = await generateImage(styledPrompt, aspectRatio);
+                    resultBase64 = await generateImage(styledPrompt, aspectRatio, negativePrompt);
                 }
             } else if (mode === 'edit') {
                 if (!prompt || !inputImage?.file) {
@@ -210,7 +211,7 @@ export default function App() {
                     return;
                 }
                  const styledPrompt = defaultStyle + prompt;
-                resultBase64 = await editImage(styledPrompt, inputImage.file, aspectRatio);
+                resultBase64 = await editImage(styledPrompt, inputImage.file, aspectRatio, negativePrompt);
             } else if (mode === 'merge') {
                 if (!prompt || mergeImages.length < 2) {
                     setError("Please provide a prompt and at least 2 images to merge.");
@@ -218,14 +219,14 @@ export default function App() {
                     return;
                 }
                 // Fix: Called the aliased `mergeImagesService` function instead of the state variable.
-                resultBase64 = await mergeImagesService(prompt, mergeImages.map(img => img.file), aspectRatio);
+                resultBase64 = await mergeImagesService(prompt, mergeImages.map(img => img.file), aspectRatio, negativePrompt);
             } else { // 'thumbnail' mode
                 if (!thumbnailBackground?.file || !thumbnailForeground?.file) {
                     setError("Please provide both a background and a foreground image for the thumbnail.");
                     setIsLoading(false);
                     return;
                 }
-                resultBase64 = await createThumbnail(prompt, thumbnailBackground.file, thumbnailForeground.file, aspectRatio);
+                resultBase64 = await createThumbnail(prompt, thumbnailBackground.file, thumbnailForeground.file, aspectRatio, negativePrompt);
             }
             setOutputImage(`data:image/png;base64,${resultBase64}`);
         } catch (e) {
@@ -234,7 +235,7 @@ export default function App() {
         } finally {
             setIsLoading(false);
         }
-    }, [mode, prompt, aspectRatio, inputImage, referenceImage, thumbnailBackground, thumbnailForeground, mergeImages]);
+    }, [mode, prompt, negativePrompt, aspectRatio, inputImage, referenceImage, thumbnailBackground, thumbnailForeground, mergeImages]);
     
     const handleSaveToGallery = useCallback(async () => {
         if (outputImage) {
@@ -308,30 +309,44 @@ export default function App() {
             {/* Controls Panel */}
             <aside className="p-6 flex flex-col space-y-6 bg-gray-900 lg:border-r lg:border-gray-800">
                 <ModeSwitcher mode={mode} setMode={setMode} />
-
-                {/* Prompt Textarea */}
-                <div className="relative">
-                    <textarea
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder={
-                            mode === 'generate' ? "Describe the image you want to create..." :
-                            mode === 'edit' ? "Describe the edits you want to make..." :
-                            mode === 'merge' ? "Describe the final merged scene..." :
-                            "Add text or describe adjustments for the thumbnail..."
-                        }
-                        className="w-full h-32 p-4 bg-gray-800 border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors placeholder-gray-500 text-white resize-none"
-                        aria-label="Prompt for AI image generation"
-                    />
-                     <button
-                        onClick={handleEnhancePrompt}
-                        disabled={isEnhancing || isLoading || !prompt}
-                        className="absolute bottom-3 right-3 flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-1.5 px-3 rounded-md text-xs font-semibold hover:from-purple-500 hover:to-indigo-500 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
-                        title="Enhance prompt with more detail"
-                    >
-                        {isEnhancing ? <Spinner className="w-4 h-4" /> : <Icon path="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" className="w-4 h-4" />}
-                        <span>Enhance</span>
-                    </button>
+                
+                <div className='flex flex-col space-y-4'>
+                    {/* Prompt Textarea */}
+                    <div className="relative">
+                        <textarea
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            placeholder={
+                                mode === 'generate' ? "Describe the image you want to create..." :
+                                mode === 'edit' ? "Describe the edits you want to make..." :
+                                mode === 'merge' ? "Describe the final merged scene..." :
+                                "Add text or describe adjustments for the thumbnail..."
+                            }
+                            className="w-full h-32 p-4 bg-gray-800 border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors placeholder-gray-500 text-white resize-none"
+                            aria-label="Prompt for AI image generation"
+                        />
+                         <button
+                            onClick={handleEnhancePrompt}
+                            disabled={isEnhancing || isLoading || !prompt}
+                            className="absolute bottom-3 right-3 flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-1.5 px-3 rounded-md text-xs font-semibold hover:from-purple-500 hover:to-indigo-500 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
+                            title="Enhance prompt with more detail"
+                        >
+                            {isEnhancing ? <Spinner className="w-4 h-4" /> : <Icon path="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" className="w-4 h-4" />}
+                            <span>Enhance</span>
+                        </button>
+                    </div>
+                    {/* Negative Prompt Textarea */}
+                     <div>
+                        <label htmlFor="negative-prompt" className="block text-sm font-medium mb-2 text-gray-400">Negative Prompt (Optional)</label>
+                        <textarea
+                            id="negative-prompt"
+                            value={negativePrompt}
+                            onChange={(e) => setNegativePrompt(e.target.value)}
+                            placeholder="Describe what you want to avoid in the image..."
+                            className="w-full h-20 p-3 bg-gray-800 border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors placeholder-gray-500 text-white resize-none"
+                            aria-label="Negative prompt to avoid elements in the image"
+                        />
+                    </div>
                 </div>
 
                 {/* Mode-specific Inputs */}
@@ -368,7 +383,7 @@ export default function App() {
                                     <input id="edit-file-upload" name="edit-file-upload" type="file" className="sr-only" onChange={handleEditFileChange} accept="image/png, image/jpeg, image/webp"/>
                                 </label>
                                 </div>
-                                <p className="text-xs text-gray-600">PNG, JPG, WEBP up to 4MB</p>
+                                <p className="text-xs text-gray-600">PNG, JPG, WEBP up to 6MB</p>
                             </div>
                         </div>
                     </div>
